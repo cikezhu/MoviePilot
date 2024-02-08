@@ -123,11 +123,9 @@ def get_message(token: str):
 
 
 @router.get("/logging", summary="实时日志")
-def get_logging(token: str, length: int = 50):
+def get_logging(token: str):
     """
-    实时获取系统日志
-    length = -1 时, 返回text/plain
-    否则 返回格式SSE
+    实时获取系统日志，返回格式为SSE
     """
     if not token or not verify_token(token):
         raise HTTPException(
@@ -135,26 +133,18 @@ def get_logging(token: str, length: int = 50):
             detail="认证失败！",
         )
 
-    log_path = settings.LOG_PATH / 'moviepilot.log'
     def log_generator():
+        log_path = settings.LOG_PATH / 'moviepilot.log'
         # 读取文件末尾50行，不使用tailer模块
         with open(log_path, 'r', encoding='utf-8') as f:
-            for line in f.readlines()[-max(length, 50):]:
+            for line in f.readlines()[-50:]:
                 yield 'data: %s\n\n' % line
         while True:
             for text in tailer.follow(open(log_path, 'r', encoding='utf-8')):
                 yield 'data: %s\n\n' % (text or '')
             time.sleep(1)
 
-    # 根据length参数返回不同的响应
-    if length == -1:
-         # 返回全部日志作为文本响应
-        with open(log_path, 'r', encoding='utf-8') as f:
-            text = f.read()
-        return Response(content=text, media_type="text/plain")
-    else:
-        # 返回SSE流响应
-        return StreamingResponse(log_generator(), media_type="text/event-stream")
+    return StreamingResponse(log_generator(), media_type="text/event-stream")
 
 
 @router.get("/nettest", summary="测试网络连通性")
